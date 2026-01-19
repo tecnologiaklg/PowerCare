@@ -1,0 +1,2 @@
+Reinicialização através de um botão
+Travar pra não maximizar tela
