@@ -433,12 +433,6 @@ Add-MenuButton "Esvaziar lixeira" {
     # Comando para esvaziar a lixeira de todas as unidades sem pedir confirmação
     Add-Log "Lixeira esvaziada com sucesso" "SUCCESS"
 }
-Add-MenuButton "Executar tudo" {
-    # Sequência automatizada de todas as manutenções disponíveis
-    Limpar-Windows
-    Otimizar-Rede-Completo
-    Add-Log "Manutencao geral finalizada!" "SUCCESS"
-}
 Add-MenuButton "Limpar tela" { 
     $script:LogBox.Clear() 
     # Apaga todo o texto acumulado na caixa de log
