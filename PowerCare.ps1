@@ -428,10 +428,21 @@ function Add-MenuButton($text, [scriptblock]$code) {
 Add-MenuButton "Limpeza completa" { Limpar-Windows }
 Add-MenuButton "Otimizar rede"    { Otimizar-Rede-Completo }
 Add-MenuButton "Gerenciar inicializacao" { Gerenciar-Startup-Lista }
-Add-MenuButton "Esvaziar lixeira" { 
-    Clear-RecycleBin -Force -Confirm:$false -ErrorAction SilentlyContinue
-    # Comando para esvaziar a lixeira de todas as unidades sem pedir confirmação
-    Add-Log "Lixeira esvaziada com sucesso" "SUCCESS"
+Add-MenuButton "Esvaziar lixeira" {
+    Add-Log "Esvaziando lixeira (modo seguro)..." "INFO"
+
+    $drives = Get-PSDrive -PSProvider FileSystem
+    foreach ($d in $drives) {
+        $path = "$($d.Root)`$Recycle.Bin"
+        if (Test-Path $path) {
+            try {
+                Get-ChildItem $path -Force -Recurse -ErrorAction SilentlyContinue |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            } catch {}
+        }
+    }
+
+    Add-Log "Lixeira esvaziada com sucesso." "SUCCESS"
 }
 Add-MenuButton "Limpar tela" { 
     $script:LogBox.Clear() 
