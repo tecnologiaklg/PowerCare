@@ -27,11 +27,18 @@ if (-not $isAdmin) {
 
 # Hardware
 
-$cpuName = (Get-CimInstance Win32_Processor).Name 
-# cpuName recebe as informações do processador
+# --- Coleta de Hardware Inicial ---
+$cpu = Get-CimInstance Win32_Processor
+$cpuName = $cpu.Name
+$cpuThreads = $cpu.NumberOfLogicalProcessors
 
-$totalRam = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum / 1GB, 0)
-# totalRam recebe a quantidade total de memória RAM
+$os = Get-CimInstance Win32_OperatingSystem
+$osName = $os.Caption
+$userName = $env:USERNAME
+$computerName = $env:COMPUTERNAME
+
+$totalRamRaw = (Get-CimInstance Win32_PhysicalMemory | Measure-Object Capacity -Sum).Sum
+$totalRam = [math]::Round($totalRamRaw / 1GB, 0)
 
 # Configuracoes visuais
 
@@ -52,6 +59,31 @@ $Theme = @{
 
 function Update-UI { [System.Windows.Forms.Application]::DoEvents() }
 # Atualiza a interface para evitar travamentos durante execução.
+
+function Get-SystemStats {
+    # Coleta o uso de CPU (Amostra de 1 segundo para precisão)
+    $cpuA = Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'"
+    $cpuUsage = $cpuA.PercentProcessorTime
+
+    # RAM
+    $ramUsage = Get-CimInstance Win32_OperatingSystem
+    $usedRam = [math]::Round(($totalRamRaw / 1KB - $ramUsage.FreePhysicalMemory) / 1MB, 2)
+    
+    # Disco (C:)
+    $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+    $diskFree = [math]::Round($disk.FreeSpace / 1GB, 2)
+    $diskTotal = [math]::Round($disk.Size / 1GB, 2)
+    $diskType = if ((Get-PhysicalDisk | Where-Object DeviceId -eq 0).MediaType -eq "SSD") { "SSD" } else { "HDD" }
+
+    return @{
+        CPU = $cpuUsage
+        RAMUsed = $usedRam
+        DiskFree = $diskFree
+        DiskTotal = $diskTotal
+        DiskType = $diskType
+    }
+}
+# Função para obter uso em tempo real
 
 function Add-Log {
     param([string]$msg, [string]$type="INFO")
@@ -292,7 +324,6 @@ function Gerenciar-Startup-Lista {
 
 # --- Interface --- 
 $script:form = New-Object System.Windows.Forms.Form
-# Cria a janela principal do programa
 $form.Text = "PowerCare"
 $form.Size = '900,650'
 $form.BackColor = $Theme.BG
@@ -301,36 +332,44 @@ $form.FormBorderStyle = "FixedSingle"
 $form.MaximizeBox = $false
 
 $SidePanel = New-Object System.Windows.Forms.Panel
-# Cria o painel lateral escuro para o menu
 $SidePanel.Size = '220,650'
 $SidePanel.BackColor = $Theme.Side
 $SidePanel.Dock = "Left"
 $form.Controls.Add($SidePanel)
 
 $Title = New-Object System.Windows.Forms.Label
-# Texto do título principal
 $Title.Text = "PowerCare"
 $Title.Font = New-Object System.Drawing.Font("Segoe UI", 20, [System.Drawing.FontStyle]::Bold)
 $Title.ForeColor = $Theme.Accent
-$Title.Location = '20,20'
+$Title.Location = '15,20'
 $Title.AutoSize = $true
 $SidePanel.Controls.Add($Title)
 
+# --- Hardware Display (Informações Estáticas) ---
 $HardwareInfo = New-Object System.Windows.Forms.Label
-# Exibe o modelo do processador e a RAM coletados no início
-$HardwareInfo.Text = "$cpuName`nMemoria RAM: $totalRam GB"
+$HardwareInfo.Text = "SISTEMA: $osName`nUSER: $userName`nHOST: $computerName`nCPU: $cpuName`n($cpuThreads Threads)"
 $HardwareInfo.Font = New-Object System.Drawing.Font("Segoe UI", 8)
 $HardwareInfo.ForeColor = $Theme.SubText
-$HardwareInfo.Location = '20,65'
-$HardwareInfo.Size = '180,45'
+$HardwareInfo.Location = '15,65' 
+$HardwareInfo.Size = '195,110'     # Altura generosa para o nome da CPU
+$HardwareInfo.AutoEllipsis = $true 
 $SidePanel.Controls.Add($HardwareInfo)
 
+# --- Dynamic Stats (Informações em Tempo Real) ---
+$DynamicStats = New-Object System.Windows.Forms.Label
+$DynamicStats.Text = "Monitorando hardware..."
+$DynamicStats.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
+$DynamicStats.ForeColor = $Theme.Accent
+$DynamicStats.Location = '15,185'  # Desceu para não bater no texto acima
+$DynamicStats.Size = '195,100'     # Espaço para 4 linhas de dados dinâmicos
+$SidePanel.Controls.Add($DynamicStats)
+
+# --- Rodapé e Versão ---
 $FooterBy = New-Object System.Windows.Forms.Label
-# Créditos do autor
 $FooterBy.Text = "by: Gustavo Moreira"
 $FooterBy.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $FooterBy.ForeColor = $Theme.SubText
-$FooterBy.Location = '20,550'
+$FooterBy.Location = '20,545'
 $FooterBy.AutoSize = $true
 $SidePanel.Controls.Add($FooterBy)
 
@@ -338,19 +377,21 @@ $VersionLabel = New-Object System.Windows.Forms.Label
 $VersionLabel.Text = "Versao 1.0"
 $VersionLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8)
 $VersionLabel.ForeColor = $Theme.SubText
-$VersionLabel.Location = '20,570'
+$VersionLabel.Location = '20,565'
 $VersionLabel.AutoSize = $true
 $SidePanel.Controls.Add($VersionLabel)
 
+# --- Início dos Botões ---
+$script:currentY = 300 # O menu começa bem abaixo do monitoramento azul
+
+# --- Elementos do Painel de Log (Lado Direito) ---
 $script:ProgressBar = New-Object System.Windows.Forms.ProgressBar
-# Barra de progresso visual na parte inferior
 $script:ProgressBar.Size = '620,15'
 $script:ProgressBar.Location = '250,580'
 $script:ProgressBar.Style = "Continuous"
 $form.Controls.Add($script:ProgressBar)
 
 $script:LogBox = New-Object System.Windows.Forms.RichTextBox
-# Caixa central que mostra o texto colorido das operações
 $LogBox.ReadOnly = $true
 $LogBox.BackColor = $Theme.LogBG
 $LogBox.ForeColor = $Theme.Text
@@ -361,45 +402,41 @@ $LogBox.Location = '250,100'
 $form.Controls.Add($LogBox)
 
 $script:StatusLabel = New-Object System.Windows.Forms.Label
-# Pequeno texto de status acima do log
 $StatusLabel.Text = "Status: Aguardando"
 $StatusLabel.ForeColor = [System.Drawing.Color]::Gray
 $StatusLabel.Location = '250,65'
 $StatusLabel.AutoSize = $true
 $form.Controls.Add($StatusLabel)
 
+# --- Botão Manual (?) ---
 $btnManual = New-Object System.Windows.Forms.Button
-# Botão circular de ajuda
 $btnManual.Text = "?"
 $btnManual.Size = '32,32'
-$btnManual.Location = '170,550'
+$btnManual.Location = '170,545'
 $btnManual.FlatStyle = "Flat"
 $btnManual.FlatAppearance.BorderSize = 0
 $btnManual.BackColor = $Theme.Info
 $btnManual.ForeColor = $Theme.BG
 $btnManual.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
 $btnManual.Cursor = [System.Windows.Forms.Cursors]::Hand
-
 $gp = New-Object System.Drawing.Drawing2D.GraphicsPath
-# Cria um caminho geométrico para arredondar o botão
 $gp.AddEllipse(0, 0, $btnManual.Width, $btnManual.Height)
 $btnManual.Region = New-Object System.Drawing.Region($gp)
 $SidePanel.Controls.Add($btnManual)
 
 $btnManual.Add_Click({
-    # Exibe uma caixa de mensagem informativa ao clicar no "?"
-    $helpText = "POWERCARE - GUIA DE USO`n`nLimpeza Completa: Remove lixo do disco.`nOtimizar Rede: Melhora conexao.`nEsvaziar Lixeira: Limpa arquivos deletados."
+    $helpText = "POWERCARE - GUIA DE USO`n`nLimpeza completa: Remove lixo do disco.`nOtimizar rede: Melhora conexao.`nEsvaziar lixeira: Limpa arquivos deletados.`nGerenciar inicializacao: Exibe os aplicativos que iniciam com o Windows."
     [System.Windows.Forms.MessageBox]::Show($helpText, "Manual", 0, 64)
 })
 
-$script:currentY = 130
+$script:currentY = 300
 # Variável para controlar a altura vertical de cada botão adicionado ao menu
 
 function Add-MenuButton($text, [scriptblock]$code) {
 # Função para facilitar a criação de novos botões no menu lateral
     $btn = New-Object System.Windows.Forms.Button
     $btn.Text = $text
-    $btn.Size = '180,30'
+    $btn.Size = '180,25'
     $btn.Location = New-Object System.Drawing.Point(20, $script:currentY)
     $btn.FlatStyle = "Flat"
     $btn.FlatAppearance.BorderSize = 0
@@ -420,7 +457,7 @@ function Add-MenuButton($text, [scriptblock]$code) {
         }
     })
     $SidePanel.Controls.Add($btn)
-    $script:currentY += 40
+    $script:currentY += 35
     # Desce 40 pixels para posicionar o próximo botão abaixo deste
 }
 
@@ -454,6 +491,16 @@ $form.Add_Load({
     # Evento disparado assim que a janela abre
     Add-Log "PowerCare pronto para uso." "SUCCESS"
 })
+
+$Timer = New-Object System.Windows.Forms.Timer
+$Timer.Interval = 2500 # Atualiza a cada 2,5 segundos
+$Timer.Add_Tick({
+    $stats = Get-SystemStats
+    $DynamicStats.Text = "USO DE CPU: $($stats.CPU)%`n" +
+                         "RAM: $($stats.RAMUsed)GB / $totalRam GB`n" +
+                         "DISCO ($($stats.DiskType)): $($stats.DiskFree)GB livres / $($stats.DiskTotal)GB"
+})
+$Timer.Start()
 
 [void]$form.ShowDialog()
 # Inicia a interface gráfica e aguarda interações do usuário

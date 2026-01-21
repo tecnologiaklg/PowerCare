@@ -1,8 +1,0 @@
-Reinicialização através de um botão
-
-
-Otimizar RAM
-Reparar arquivos do sistema no sfc /scannow
-Gerenciar Startup
-Detalhamento nos comentários pra tudo, cada linha praticamente
-Detalhamento nos logs exibidos para o usuário nas operações, sem ficar poluido

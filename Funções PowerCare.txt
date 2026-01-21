@@ -1,0 +1,90 @@
+1.  Botão: Limpeza Completa (Função Limpar-Windows) Este é o botão mais
+    complexo. Ele executa uma faxina em vários níveis do sistema:
+
+Linha 104-108: Ele consulta o disco C: para registrar quanto espaço
+livre você tem antes de começar (para poder comparar no final).
+
+Linhas 116-122: Define uma “lista negra” de pastas que acumulam lixo,
+como a pasta TEMP (arquivos temporários de instaladores), Prefetch
+(cache de inicialização que pode ficar corrompido) e Logs (registros de
+erros antigos).
+
+Linhas 128-132: Entra em cada uma dessas pastas e tenta apagar tudo
+(Remove-Item -Force). Se um arquivo estiver em uso pelo Windows, ele
+ignora silenciosamente para não travar o programa.
+
+Linha 140: Executa o comando DISM. Esta é a “limpeza profunda” que
+remove versões antigas de atualizações do Windows Update que ficam
+ocupando gigabytes desnecessários.
+
+Linhas 144-154: Faz um novo cálculo do disco, subtrai o valor inicial e
+mostra no seu log exatamente quantos MB ou GB você recuperou.
+
+2.  Botão: Otimizar Rede (Função Otimizar-Rede-Completo) Foca em renovar
+    a conexão e limpar “engarrafamentos” digitais:
+
+Linhas 168-171: Faz um teste de Ping (latência) enviando um sinal para o
+DNS do Google (8.8.8.8) para saber como está a velocidade de resposta da
+sua internet no momento.
+
+Linha 175: Prepara quatro comandos essenciais:
+
+flushdns: Limpa o cache de sites (resolve problemas de sites que não
+carregam).
+
+winsock reset: Restaura o catálogo de protocolos de rede (corrige erros
+de conexão nula).
+
+int ip reset: Reinstala o protocolo TCP/IP da sua placa de rede.
+
+autotuninglevel=normal: Garante que o Windows use toda a largura de
+banda disponível para downloads.
+
+Linhas 186-193: Refaz o teste de Ping e te diz se a latência diminuiu
+após os resets.
+
+3.  Botão: Gerenciar Inicialização (Função Gerenciar-Startup-Lista) Este
+    botão abre uma nova janela (PopUp) para você controlar o que liga
+    junto com o PC:
+
+Linhas 230-250: O script vasculha o Registro do Windows (pastas Run do
+sistema e do usuário) e a pasta física de Inicializar.
+
+Linhas 272-282: Se você selecionar um item e clicar em “Remover”, o
+script identifica se o item é uma chave de registro ou um atalho na
+pasta e o deleta permanentemente, impedindo que o programa abra sozinho
+na próxima vez que você ligar o notebook.
+
+4.  Botão: Esvaziar Lixeira Este botão foi criado diretamente no
+    registro do menu (Linhas 366-382):
+
+Linha 370: Identifica todos os discos conectados (C:, D:, etc.).
+
+Linha 371-372: Localiza a pasta oculta $Recycle.Bin, que é onde o
+Windows guarda os arquivos deletados de cada partição.
+
+Linhas 374-376: Apaga todos os arquivos lá dentro de forma forçada. É
+mais potente que o “Esvaziar Lixeira” comum do desktop, pois limpa as
+lixeiras de todos os usuários e discos de uma vez só.
+
+5.  Botão: Limpar Tela Uma função utilitária de interface (Linhas
+    384-388):
+
+Linha 385: Executa o método .Clear() na sua caixa de texto central
+(LogBox).
+
+Linha 387: Adiciona uma mensagem limpa informando que o histórico foi
+apagado, deixando o visual organizado novamente.
+
+Resumo do Monitoramento (O que roda sozinho) Enquanto você não clica em
+nada, o Timer (Linhas 400-405) trabalha nos bastidores:
+
+Chama a função Get-SystemStats.
+
+Calcula a porcentagem da CPU.
+
+Calcula a RAM usada (Total - Livre).
+
+Verifica se o seu disco é SSD ou HDD (importante para saber se o PC é
+rápido ou lento) e atualiza o texto azul no seu menu lateral a cada 2,5
+segundos.
